@@ -1,0 +1,6 @@
+bronze/*.parquet
+bronze/*.delta
+__pycache__/
+.venv/
+.DS_Store
+Thumbs.db
