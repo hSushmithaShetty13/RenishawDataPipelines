@@ -1,14 +1,21 @@
 /* ============================================================
    03_gold_ddl.sql
-   Gold star schema in WH_Finance_Gold.
+   Gold star schema in WH_Finance_Gold (Fabric Warehouse).
    Populated by PL_GOLD_LOAD via T-SQL Script/Copy activities.
+
+   Fabric Warehouse T-SQL notes:
+     * No IDENTITY / SEQUENCE -> surrogate keys are built with ROW_NUMBER()
+       against the source in the load pipeline (see pl_gold_load.md).
+     * PRIMARY KEY must be NONCLUSTERED NOT ENFORCED.
+     * DEFAULT constraints are not supported.
+     * MERGE is not supported -> SCD2 done with DELETE + INSERT + UPDATE.
    ============================================================ */
 
 CREATE SCHEMA gold;
 GO
 
 CREATE TABLE gold.dim_date (
-    date_key        INT           NOT NULL PRIMARY KEY NONCLUSTERED,
+    date_key        INT           NOT NULL,
     calendar_date   DATE          NOT NULL,
     day             INT           NOT NULL,
     month           INT           NOT NULL,
@@ -16,20 +23,22 @@ CREATE TABLE gold.dim_date (
     quarter         INT           NOT NULL,
     year            INT           NOT NULL,
     fiscal_period   VARCHAR(10)   NULL,
-    is_weekend      BIT           NOT NULL
+    is_weekend      BIT           NOT NULL,
+    CONSTRAINT PK_dim_date PRIMARY KEY NONCLUSTERED (date_key) NOT ENFORCED
 );
 GO
 
 CREATE TABLE gold.dim_customer (
-    customer_sk     BIGINT        NOT NULL,        -- surrogate
-    customer_id     VARCHAR(50)   NOT NULL,        -- business key
+    customer_sk     BIGINT        NOT NULL,
+    customer_id     VARCHAR(50)   NOT NULL,
     customer_name   VARCHAR(200)  NOT NULL,
     country_code    VARCHAR(10)   NULL,
     segment         VARCHAR(50)   NULL,
     is_active       BIT           NOT NULL,
     valid_from_utc  DATETIME2(3)  NOT NULL,
-    valid_to_utc    DATETIME2(3)  NULL,           -- NULL = current
-    is_current      BIT           NOT NULL
+    valid_to_utc    DATETIME2(3)  NULL,
+    is_current      BIT           NOT NULL,
+    CONSTRAINT PK_dim_customer PRIMARY KEY NONCLUSTERED (customer_sk) NOT ENFORCED
 );
 GO
 
@@ -37,7 +46,8 @@ CREATE TABLE gold.dim_account (
     account_sk      BIGINT        NOT NULL,
     account_code    VARCHAR(20)   NOT NULL,
     account_name    VARCHAR(200)  NULL,
-    account_type    VARCHAR(50)   NULL
+    account_type    VARCHAR(50)   NULL,
+    CONSTRAINT PK_dim_account PRIMARY KEY NONCLUSTERED (account_sk) NOT ENFORCED
 );
 GO
 

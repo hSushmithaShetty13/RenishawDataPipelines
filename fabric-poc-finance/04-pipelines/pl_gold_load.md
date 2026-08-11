@@ -4,6 +4,10 @@
 
 Only invoked after `NB_ROW_RECONCILIATION` succeeds.
 
+> **Fabric Warehouse T-SQL restrictions used below:**
+> * `MERGE` is not supported → SCD2 uses `UPDATE ... FROM` + `INSERT ... WHERE NOT EXISTS`.
+> * `IDENTITY` / `SEQUENCE` are not supported → surrogate keys are computed with `ROW_NUMBER() + ISNULL(MAX(sk),0)`.
+
 ## Activity graph
 
 ```mermaid
@@ -23,31 +27,46 @@ flowchart LR
 ### 1. Create pipeline `PL_GOLD_LOAD`
 Same six parameters.
 
-### 2. `SCR_Upsert_Dim_Customer` (Script) — SCD2 example
+### 2. `SCR_Upsert_Dim_Customer` (Script) — SCD2 without MERGE
 ```sql
 -- Only run when entity is customers OR when running full-load
 IF '@{pipeline().parameters.p_entity_name}' NOT IN ('customers','ALL') RETURN;
 
-WITH src AS (
-    SELECT customer_id, customer_name, country_code, segment, CAST(is_active AS BIT) AS is_active,
-           HASHBYTES('SHA1', CONCAT_WS('|',customer_name,country_code,segment,is_active)) AS row_hash
-    FROM   OPENROWSET(BULK 'silver.customers', FORMAT='delta') AS s   -- via Lakehouse SQL endpoint shortcut
-)
-MERGE gold.dim_customer AS tgt
-USING src
-   ON tgt.customer_id = src.customer_id AND tgt.is_current = 1
-WHEN MATCHED AND HASHBYTES('SHA1', CONCAT_WS('|',tgt.customer_name,tgt.country_code,tgt.segment,tgt.is_active)) <> src.row_hash
-  THEN UPDATE SET is_current = 0, valid_to_utc = SYSUTCDATETIME()
-WHEN NOT MATCHED BY TARGET
-  THEN INSERT (customer_sk, customer_id, customer_name, country_code, segment, is_active, valid_from_utc, valid_to_utc, is_current)
-       VALUES (NEXT VALUE FOR gold.seq_customer_sk, src.customer_id, src.customer_name, src.country_code, src.segment, src.is_active, SYSUTCDATETIME(), NULL, 1);
+-- Stage the source
+DROP TABLE IF EXISTS #src_customer;
+CREATE TABLE #src_customer (
+    customer_id   VARCHAR(50),
+    customer_name VARCHAR(200),
+    country_code  VARCHAR(10),
+    segment       VARCHAR(50),
+    is_active     BIT,
+    row_hash      BINARY(20)
+);
 
--- Insert a new current row for changed customers
+INSERT INTO #src_customer
+SELECT customer_id, customer_name, country_code, segment, CAST(is_active AS BIT),
+       HASHBYTES('SHA1', CONCAT_WS('|',customer_name,country_code,segment,CAST(is_active AS VARCHAR(1))))
+FROM   OPENROWSET(BULK 'silver.customers', FORMAT='delta') AS s;
+
+-- 1) Expire current rows whose attributes changed
+UPDATE tgt
+SET    is_current = 0,
+       valid_to_utc = SYSUTCDATETIME()
+FROM   gold.dim_customer tgt
+JOIN   #src_customer src ON src.customer_id = tgt.customer_id AND tgt.is_current = 1
+WHERE  HASHBYTES('SHA1', CONCAT_WS('|',tgt.customer_name,tgt.country_code,tgt.segment,CAST(tgt.is_active AS VARCHAR(1)))) <> src.row_hash;
+
+-- 2) Insert net-new + new versions
+DECLARE @maxSk BIGINT = ISNULL((SELECT MAX(customer_sk) FROM gold.dim_customer), 0);
+
 INSERT INTO gold.dim_customer(customer_sk, customer_id, customer_name, country_code, segment, is_active, valid_from_utc, valid_to_utc, is_current)
-SELECT NEXT VALUE FOR gold.seq_customer_sk, s.customer_id, s.customer_name, s.country_code, s.segment, CAST(s.is_active AS BIT), SYSUTCDATETIME(), NULL, 1
-FROM   src s
-JOIN   gold.dim_customer c ON c.customer_id = s.customer_id AND c.is_current = 0 AND c.valid_to_utc >= DATEADD(minute,-1,SYSUTCDATETIME())
-WHERE  NOT EXISTS (SELECT 1 FROM gold.dim_customer x WHERE x.customer_id = s.customer_id AND x.is_current = 1);
+SELECT @maxSk + ROW_NUMBER() OVER (ORDER BY src.customer_id),
+       src.customer_id, src.customer_name, src.country_code, src.segment, src.is_active,
+       SYSUTCDATETIME(), NULL, 1
+FROM   #src_customer src
+WHERE  NOT EXISTS (
+         SELECT 1 FROM gold.dim_customer c
+         WHERE  c.customer_id = src.customer_id AND c.is_current = 1);
 ```
 
 ### 3. `SCR_Insert_Fact_GL` (Script)
