@@ -6,7 +6,8 @@
    Fabric Warehouse T-SQL notes:
      * No IDENTITY / SEQUENCE -> surrogate keys are built with ROW_NUMBER()
        against the source in the load pipeline (see pl_gold_load.md).
-     * PRIMARY KEY must be NONCLUSTERED NOT ENFORCED.
+     * PRIMARY KEY is added via ALTER TABLE (inline PK in CREATE TABLE is not
+       supported); must be NONCLUSTERED NOT ENFORCED.
      * DEFAULT constraints are not supported.
      * MERGE is not supported -> SCD2 done with DELETE + INSERT + UPDATE.
    ============================================================ */
@@ -23,9 +24,11 @@ CREATE TABLE gold.dim_date (
     quarter         INT           NOT NULL,
     year            INT           NOT NULL,
     fiscal_period   VARCHAR(10)   NULL,
-    is_weekend      BIT           NOT NULL,
-    CONSTRAINT PK_dim_date PRIMARY KEY NONCLUSTERED (date_key) NOT ENFORCED
+    is_weekend      BIT           NOT NULL
 );
+GO
+ALTER TABLE gold.dim_date
+    ADD CONSTRAINT PK_dim_date PRIMARY KEY NONCLUSTERED (date_key) NOT ENFORCED;
 GO
 
 CREATE TABLE gold.dim_customer (
@@ -37,18 +40,22 @@ CREATE TABLE gold.dim_customer (
     is_active       BIT           NOT NULL,
     valid_from_utc  DATETIME2(3)  NOT NULL,
     valid_to_utc    DATETIME2(3)  NULL,
-    is_current      BIT           NOT NULL,
-    CONSTRAINT PK_dim_customer PRIMARY KEY NONCLUSTERED (customer_sk) NOT ENFORCED
+    is_current      BIT           NOT NULL
 );
+GO
+ALTER TABLE gold.dim_customer
+    ADD CONSTRAINT PK_dim_customer PRIMARY KEY NONCLUSTERED (customer_sk) NOT ENFORCED;
 GO
 
 CREATE TABLE gold.dim_account (
     account_sk      BIGINT        NOT NULL,
     account_code    VARCHAR(20)   NOT NULL,
     account_name    VARCHAR(200)  NULL,
-    account_type    VARCHAR(50)   NULL,
-    CONSTRAINT PK_dim_account PRIMARY KEY NONCLUSTERED (account_sk) NOT ENFORCED
+    account_type    VARCHAR(50)   NULL
 );
+GO
+ALTER TABLE gold.dim_account
+    ADD CONSTRAINT PK_dim_account PRIMARY KEY NONCLUSTERED (account_sk) NOT ENFORCED;
 GO
 
 CREATE TABLE gold.fact_gl (

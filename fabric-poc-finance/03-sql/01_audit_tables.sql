@@ -6,7 +6,8 @@
    Fabric Warehouse T-SQL notes (differs from SQL Server / Azure SQL):
      * DEFAULT constraints are NOT supported -> defaults are supplied by the
        stored procedures below at INSERT time.
-     * PRIMARY KEY must be NONCLUSTERED NOT ENFORCED.
+     * Inline PRIMARY KEY in CREATE TABLE is NOT supported -> add via ALTER
+       TABLE, and it must be NONCLUSTERED NOT ENFORCED.
      * IDENTITY, SEQUENCE, and computed columns are NOT supported.
      * MERGE is NOT supported -> use DELETE + INSERT pattern (see sp_update_watermark).
    ============================================================ */
@@ -92,9 +93,11 @@ CREATE TABLE control.watermark (
     entity_name         VARCHAR(200)  NOT NULL,
     watermark_column    VARCHAR(200)  NOT NULL,
     watermark_value     VARCHAR(200)  NOT NULL,
-    last_updated_utc    DATETIME2(3)  NOT NULL,
-    CONSTRAINT PK_watermark PRIMARY KEY NONCLUSTERED (entity_name) NOT ENFORCED
+    last_updated_utc    DATETIME2(3)  NOT NULL
 );
+GO
+ALTER TABLE control.watermark
+    ADD CONSTRAINT PK_watermark PRIMARY KEY NONCLUSTERED (entity_name) NOT ENFORCED;
 GO
 
 /* ---------- Metadata-driven source config ---------- */
@@ -107,9 +110,11 @@ CREATE TABLE control.source_config (
     load_mode           VARCHAR(20)   NOT NULL,
     watermark_column    VARCHAR(200)  NULL,
     tolerance_pct       DECIMAL(9,4)  NOT NULL,
-    is_active           BIT           NOT NULL,
-    CONSTRAINT PK_source_config PRIMARY KEY NONCLUSTERED (entity_name) NOT ENFORCED
+    is_active           BIT           NOT NULL
 );
+GO
+ALTER TABLE control.source_config
+    ADD CONSTRAINT PK_source_config PRIMARY KEY NONCLUSTERED (entity_name) NOT ENFORCED;
 GO
 
 INSERT INTO control.source_config
