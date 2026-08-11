@@ -179,38 +179,7 @@ Each section is a **short, opinionated how-to** with the minimum steps to stand 
 
 ---
 
-## 10. Deployment pipelines (Dev → Test → Prod)
-
-**Value:** promote items between workspaces with rule-based parameter overrides.
-
-**Steps:**
-1. **Deployment pipelines** hub → **+ New pipeline** with 3 stages: Dev, Test, Prod.
-2. Assign the three workspaces (`WS_Finance_Dev`, `..._Test`, `..._Prod`).
-3. Under **Deployment rules** for each stage set:
-   - Warehouse connection → point at the stage's warehouse
-   - Lakehouse connection → same
-   - Pipeline parameter `p_tolerance_pct` (looser in Dev, tighter in Prod)
-4. Deploy by clicking **Deploy** on the stage arrow.
-
-**Effort:** 45 min.
-
----
-
-## 11. Purview item-level lineage
-
-**Value:** end-to-end lineage from source CSV → Bronze → Silver → Gold → Power BI report, visible to data stewards.
-
-**Steps:**
-1. Fabric admin portal → **Tenant settings** → enable **Send data lineage to Purview**.
-2. Register the Fabric tenant in your Purview account (**Data Map** → **Sources** → **Fabric**).
-3. Scan runs on a schedule; expect first lineage graphs within 24 h.
-4. Verify by opening `gold.fact_gl` in Purview → **Lineage** tab.
-
-**Effort:** 60 min (mostly waiting for the first scan).
-
----
-
-## 12. CU consumption alert per pipeline
+## 10. CU consumption alert per pipeline
 
 **Value:** catch cost spikes before month-end billing surprise.
 
