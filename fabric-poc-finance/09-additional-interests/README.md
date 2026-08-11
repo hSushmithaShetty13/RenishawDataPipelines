@@ -1,6 +1,6 @@
 # 09 — Additional / Interests
 
-Implementation notes for the 🔜 items in [`08-best-practices/best-practices.md`](../08-best-practices/best-practices.md) — the things we deliberately kept out of the POC scope but that customers usually ask about right after the demo.
+Implementation notes for the 📋 items in [`08-best-practices/best-practices.md`](../08-best-practices/best-practices.md) — the things we deliberately kept out of the POC scope but that customers usually ask about right after the demo.
 
 Each section is a **short, opinionated how-to** with the minimum steps to stand it up, not a full design doc. Order matches the scorecard.
 
@@ -200,5 +200,5 @@ Each section is a **short, opinionated how-to** with the minimum steps to stand 
 ## How to use this section in the demo
 
 - **Do not** walk through it slide-by-slide — customer will glaze over.
-- Close the best-practices scorecard, say: *"For every 🔜 item you saw, we've written a 15-to-60-minute how-to in section 09. Happy to run any of them as a follow-up."*
+- Close the best-practices scorecard, say: *"For every 📋 item you saw, we've written a 15-to-60-minute how-to in section 09. Happy to run any of them as a follow-up."*
 - Have this file open in a browser tab so you can jump to a specific point if asked.
