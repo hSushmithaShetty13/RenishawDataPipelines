@@ -138,12 +138,17 @@ Replace the previous Notebook activity with a **Dataflow activity**.
 ```mermaid
 flowchart LR
     A[Set variable: v_start = utcNow] --> B[Dataflow: DF_SILVER_&lt;entity&gt;]
-    B --> C[Lookup: SELECT COUNT(*) FROM silver.&lt;entity&gt; AS written]
-    C --> D[Lookup: SELECT COUNT(*), rule_code FROM silver_rejects.&lt;entity&gt; WHERE run_id=@ GROUP BY rule_code]
-    D --> E[Script: sp_log_activity Succeeded]
-    D --> F[Script: sp_log_dq per rule]
-    B -. On Failure .-> G[Script: sp_log_activity Failed] --> H[Fail]
+    B --> C[Lookup: EXEC audit.sp_summarise_silver &#64;run_id, &#64;entity]
+    C --> D[Script: sp_log_activity Succeeded]
+    B -. On Failure .-> E[Script: sp_log_activity Failed] --> F[Fail]
 ```
+
+The proc `audit.sp_summarise_silver` (defined in `03-sql/01_audit_tables.sql`) handles the two things dynamic pipeline SQL is bad at:
+- counting rows in `silver_rejects.<entity>` where the table name is only known at run time
+- counting rows in `silver.<entity>` via cross-database query against the Lakehouse SQL endpoint
+- inserting one `audit.data_quality` row per `rule_code`
+
+…so the pipeline stays declarative — one Lookup + one Script — instead of building fragile dynamic SQL inline.
 
 ### Steps
 
@@ -155,33 +160,16 @@ flowchart LR
   - `p_load_date` ← `@pipeline().parameters.p_load_date`
 - Retry: 2, Retry interval: 60 s.
 
-**2. `LKP_Silver_Count` — Lookup on Warehouse**
-```sql
--- Lakehouse table exposed via SQL endpoint of LH_Finance
-SELECT COUNT_BIG(*) AS rows_written
-FROM   LH_Finance.silver.@{pipeline().parameters.p_entity_name};
-```
-Use dynamic content to build the fully-qualified name safely (three-part name via cross-database query, or run the Lookup against the Lakehouse SQL endpoint directly).
+**2. `LKP_Summarise` — Lookup on `WH_Finance_Gold`**
+- **Use query:** Stored procedure → `audit.sp_summarise_silver`
+- Parameters:
+  - `@run_id`      = `@pipeline().parameters.p_run_id`
+  - `@entity_name` = `@pipeline().parameters.p_entity_name`
+- First row only: **true**
+- Return columns: `rows_written`, `rows_rejected` — read by the next Script. As a side-effect the proc also inserts one row per `rule_code` into `audit.data_quality`.
 
-**3. `LKP_Reject_Counts` — Lookup on Warehouse**
+**3. `SCR_Log_Activity_Success` — Script**
 ```sql
-SELECT rule_code,
-       COUNT_BIG(*) AS rows_failed,
-       MAX(CONCAT('silver_rejects.', '@{pipeline().parameters.p_entity_name}')) AS reject_table
-FROM   silver_rejects.@{pipeline().parameters.p_entity_name}
-WHERE  run_id = '@{pipeline().parameters.p_run_id}'
-GROUP  BY rule_code;
-```
-- **First row only:** unchecked (we want the array).
-
-**4. `SCR_Log_Activity_Success` — Script**
-```sql
-DECLARE @written  BIGINT = @{activity('LKP_Silver_Count').output.firstRow.rows_written};
-DECLARE @reject   BIGINT = (
-    SELECT ISNULL(SUM(rows_failed),0)
-    FROM OPENJSON(N'@{string(activity('LKP_Reject_Counts').output.value)}')
-         WITH (rows_failed BIGINT '$.rows_failed'));
-
 EXEC audit.sp_log_activity
     @run_id           = '@{pipeline().parameters.p_run_id}',
     @activity_run_id  = '@{activity('DF_Silver_Run').ActivityRunId}',
@@ -193,24 +181,11 @@ EXEC audit.sp_log_activity
     @start_time_utc   = '@{variables('v_start')}',
     @end_time_utc     = '@{utcNow()}',
     @status           = 'Succeeded',
-    @rows_written     = @written,
-    @rows_rejected    = @reject;
+    @rows_written     = @{activity('LKP_Summarise').output.firstRow.rows_written},
+    @rows_rejected    = @{activity('LKP_Summarise').output.firstRow.rows_rejected};
 ```
 
-**5. `SCR_Log_DQ` — Script (one row per rule)**
-```sql
-INSERT INTO audit.data_quality(run_id, entity_name, rule_code, rule_description, severity, rows_failed, reject_table)
-SELECT '@{pipeline().parameters.p_run_id}',
-       '@{pipeline().parameters.p_entity_name}',
-       JSON_VALUE(r.value,'$.rule_code'),
-       JSON_VALUE(r.value,'$.rule_code'),
-       'Reject',
-       CAST(JSON_VALUE(r.value,'$.rows_failed') AS BIGINT),
-       JSON_VALUE(r.value,'$.reject_table')
-FROM   OPENJSON(N'@{string(activity('LKP_Reject_Counts').output.value)}') r;
-```
-
-**6. `SCR_Log_Activity_Failure` — Script (On Failure of `DF_Silver_Run`)**
+**4. `SCR_Log_Activity_Failure` — Script (On Failure of `DF_Silver_Run`)**
 ```sql
 EXEC audit.sp_log_activity
     @run_id           = '@{pipeline().parameters.p_run_id}',

@@ -220,3 +220,48 @@ BEGIN
     VALUES(@entity_name,@watermark_column,@watermark_value,SYSUTCDATETIME());
 END;
 GO
+
+/* ============================================================
+   Silver reject summariser — called by PL_SILVER_LOAD after the
+   Dataflow Gen2 finishes writing to silver_rejects.<entity>.
+
+   Consolidates the two problems the Dataflow leaves open:
+     1) counting rows in a table whose name is only known at run time
+     2) counting Silver rows in the Lakehouse via cross-database query
+   into a single proc call, so the pipeline stays declarative.
+   ============================================================ */
+CREATE PROCEDURE audit.sp_summarise_silver
+    @run_id VARCHAR(50),
+    @entity_name VARCHAR(200)
+AS
+BEGIN
+    DECLARE @sql        NVARCHAR(MAX);
+    DECLARE @rej_table  NVARCHAR(300) = QUOTENAME('silver_rejects') + N'.' + QUOTENAME(@entity_name);
+    DECLARE @silver_tbl NVARCHAR(300) = N'[LH_Finance].' + QUOTENAME('silver') + N'.' + QUOTENAME(@entity_name);
+
+    /* Silver row count */
+    DECLARE @written BIGINT;
+    SET @sql = N'SELECT @out = COUNT_BIG(*) FROM ' + @silver_tbl + N';';
+    EXEC sp_executesql @sql, N'@out BIGINT OUTPUT', @out = @written OUTPUT;
+
+    /* Per-rule reject breakdown */
+    SET @sql = N'
+        INSERT INTO audit.data_quality(run_id, entity_name, rule_code, rule_description,
+                                       severity, rows_failed, reject_table, detected_at_utc)
+        SELECT @rid, @ent, rule_code, rule_code, ''Reject'', COUNT_BIG(*), @rej, SYSUTCDATETIME()
+        FROM   ' + @rej_table + N'
+        WHERE  run_id = @rid
+        GROUP  BY rule_code;';
+    EXEC sp_executesql @sql,
+        N'@rid VARCHAR(50), @ent VARCHAR(200), @rej VARCHAR(400)',
+        @rid = @run_id, @ent = @entity_name, @rej = @rej_table;
+
+    /* Total rejected count for activity_run */
+    DECLARE @rejected BIGINT;
+    SET @sql = N'SELECT @out = COUNT_BIG(*) FROM ' + @rej_table + N' WHERE run_id = @rid;';
+    EXEC sp_executesql @sql, N'@out BIGINT OUTPUT, @rid VARCHAR(50)',
+                       @out = @rejected OUTPUT, @rid = @run_id;
+
+    SELECT @written AS rows_written, @rejected AS rows_rejected;
+END;
+GO

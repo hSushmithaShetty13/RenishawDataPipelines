@@ -7,6 +7,8 @@ Only invoked after `NB_ROW_RECONCILIATION` succeeds.
 > **Fabric Warehouse T-SQL restrictions used below:**
 > * `MERGE` is not supported → SCD2 uses `UPDATE ... FROM` + `INSERT ... WHERE NOT EXISTS`.
 > * `IDENTITY` / `SEQUENCE` are not supported → surrogate keys are computed with `ROW_NUMBER() + ISNULL(MAX(sk),0)`.
+> * `OPENROWSET(BULK ..., FORMAT='delta')` is **not supported** (that's Synapse Serverless syntax). Read Silver via **cross-database three-part naming** against the Lakehouse's SQL analytics endpoint: `FROM [LH_Finance].[silver].[gl_transactions]`.
+> * **Prereq:** enable **Schemas (preview)** on `LH_Finance` so `silver.*` exists as a schema. Without it, tables land under `dbo`.
 
 ## Activity graph
 
@@ -46,7 +48,7 @@ CREATE TABLE #src_customer (
 INSERT INTO #src_customer
 SELECT customer_id, customer_name, country_code, segment, CAST(is_active AS BIT),
        HASHBYTES('SHA1', CONCAT_WS('|',customer_name,country_code,segment,CAST(is_active AS VARCHAR(1))))
-FROM   OPENROWSET(BULK 'silver.customers', FORMAT='delta') AS s;
+FROM   [LH_Finance].[silver].[customers];
 
 -- 1) Expire current rows whose attributes changed
 UPDATE tgt
@@ -87,10 +89,10 @@ SELECT  g.txn_id,
         g.source_system,
         '@{pipeline().parameters.p_run_id}',
         '@{pipeline().parameters.p_load_date}'
-FROM    OPENROWSET(BULK 'silver.gl_transactions', FORMAT='delta') g
+FROM    [LH_Finance].[silver].[gl_transactions] g
 LEFT JOIN gold.dim_customer c ON c.customer_id = g.customer_id AND c.is_current = 1
 JOIN    gold.dim_account a  ON a.account_code = g.account_code
-JOIN    OPENROWSET(BULK 'silver.fx_rates', FORMAT='delta') fx
+JOIN    [LH_Finance].[silver].[fx_rates] fx
         ON fx.from_ccy = g.currency_code AND fx.rate_date = g.posting_date;
 ```
 
