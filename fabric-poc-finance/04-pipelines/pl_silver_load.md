@@ -1,5 +1,12 @@
 # PL_SILVER_LOAD — Build Instructions
 
+> **SUPERSEDED — see `df_silver_load.md`.**
+> The Silver stage now uses **Dataflow Gen2** (`DF_SILVER_<entity>`) instead of a notebook, so the customer sees the Dataflow-Gen2 pattern rather than another notebook example. Reconciliation remains a notebook (`NB_ROW_RECONCILIATION`).
+>
+> This file is kept for reference — the original notebook-based Silver design.
+
+---
+
 **Purpose:** validate Bronze data against schema/DQ rules, write conformant rows to Silver Delta, route rejects to `silver_rejects.<entity>` with a rule code, and audit everything.
 
 The transformation itself lives in a notebook so the pipeline stays focused on orchestration.

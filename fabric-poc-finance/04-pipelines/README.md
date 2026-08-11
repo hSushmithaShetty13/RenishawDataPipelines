@@ -2,14 +2,16 @@
 
 Build order (each pipeline references the previous):
 
-| Order | Pipeline / Notebook                        | Purpose                                                       |
-|-------|--------------------------------------------|---------------------------------------------------------------|
-| 1     | `NB_UTIL_LOGGING` (notebook)               | Reusable helper for writing to `audit.*` from Spark.          |
-| 2     | `PL_BRONZE_INGEST`                         | Metadata-driven raw → Bronze copy.                            |
-| 3     | `PL_SILVER_LOAD`                           | Schema/DQ validation, reject-row routing.                     |
-| 4     | `NB_ROW_RECONCILIATION`                    | Bronze↔Silver row-count check; fails on breach.               |
-| 5     | `PL_GOLD_LOAD`                             | Star-schema populate + SCD2 for customer dim.                 |
-| 6     | `PL_MASTER_ORCHESTRATOR`                   | Wraps 2 → 3 → 4 → 5 with ForEach + error handling.            |
+| Order | Pipeline / Item                                                     | Purpose                                                       |
+|-------|---------------------------------------------------------------------|---------------------------------------------------------------|
+| 1     | `PL_BRONZE_INGEST`                                                  | Metadata-driven raw → Bronze copy.                            |
+| 2     | `DF_SILVER_<entity>` (Dataflow Gen2, one per entity)                | Schema/DQ validation, conformant → Silver, rejects → Warehouse. |
+| 3     | `PL_SILVER_LOAD`                                                    | Orchestrator wrapper that runs the dataflow + writes audit rows. |
+| 4     | `NB_ROW_RECONCILIATION` (notebook)                                  | Bronze↔Silver row-count check; fails on breach.               |
+| 5     | `PL_GOLD_LOAD`                                                      | Star-schema populate + SCD2 for customer dim.                 |
+| 6     | `PL_MASTER_ORCHESTRATOR`                                            | Wraps 1 → 3 → 4 → 5 with ForEach + error handling.            |
+
+**Silver design:** the Silver layer uses **Dataflow Gen2** (`df_silver_load.md`) rather than a notebook — the customer has already seen a notebook-driven medallion demo. Reconciliation stays as a notebook because it needs a hard-fail on threshold breach.
 
 All build steps use the Fabric Data Factory UI. Where JSON snippets are shown, they are the equivalent expression to paste into a parameter/dynamic content field — you never need to hand-edit pipeline JSON.
 

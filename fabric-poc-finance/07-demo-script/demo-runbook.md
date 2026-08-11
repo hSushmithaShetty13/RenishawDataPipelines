@@ -37,15 +37,20 @@ Drill into a Copy activity while it runs.
   ```
   Show `rows_rejected` populated.
 
-### 5. Silver load — rejection routing (8 min)
-Switch to the `NB_SILVER_LOAD` notebook activity output.
-- Show the `exitValue` JSON with per-rule counts.
-- Query `audit.data_quality WHERE run_id=<>` — one row per rule.
-- Query the actual reject table:
+### 5. Silver load via Dataflow Gen2 — rejection routing (8 min)
+Open `DF_SILVER_gl_transactions` in the Dataflow editor.
+- Walk through the Power Query steps: `bronze_source` → `_rule_code` custom column → split into `q_conforming` + `q_rejects`.
+- Show the two destinations: Lakehouse `silver.gl_transactions` and Warehouse `silver_rejects.gl_transactions`.
+- Emphasise: **low-code, analyst-maintainable, no Spark skills required**.
+- Back in the pipeline, show the Lookup activity that reads the reject counts by `rule_code` and the Script activity that writes them to `audit.data_quality`.
+- Query results:
   ```sql
-  SELECT TOP 20 * FROM silver_rejects.gl_transactions ORDER BY rejected_at_utc DESC;
+  SELECT rule_code, COUNT(*) AS rows FROM silver_rejects.gl_transactions
+  WHERE run_id = '<paste>' GROUP BY rule_code;
+
+  SELECT * FROM audit.data_quality WHERE run_id = '<paste>';
   ```
-- Show a rejected row's `rule_code` = `INVALID_CURRENCY`.
+- Show a rejected row: `rule_code = 'INVALID_CURRENCY'`.
 
 ### 6. Reconciliation (5 min)
 Open `NB_ROW_RECONCILIATION` output. Explain variance formula.

@@ -15,7 +15,7 @@ Demonstrates how Microsoft Fabric Data Factory pipelines orchestrate, monitor, a
 | 1 | Business context & POC objectives                | 5 min | `07-demo-script/demo-runbook.md` §1         |
 | 2 | Reference architecture walkthrough               | 5 min | `01-architecture/architecture.md`           |
 | 3 | Bronze ingestion — parameterised Copy Activity   | 8 min | `04-pipelines/pl_bronze_ingest.md`          |
-| 4 | Silver load — dependency + error handling        | 8 min | `04-pipelines/pl_silver_load.md`            |
+| 4 | Silver load via Dataflow Gen2 — DQ + reject routing | 8 min | `04-pipelines/df_silver_load.md`         |
 | 5 | Gold load — SCD, reconciliation, publish         | 7 min | `04-pipelines/pl_gold_load.md`              |
 | 6 | Audit tables — success / failure / rejected rows | 7 min | `03-sql/01_audit_tables.sql`                |
 | 7 | Monitoring, alerting, Activator rules            | 7 min | `06-monitoring/`                            |
@@ -45,7 +45,7 @@ fabric-poc-finance/
 
 1. **A Master Orchestrator pipeline** (`PL_MASTER_ORCHESTRATOR`) invokes child pipelines in the correct order with parameters.
 2. **Bronze ingest** copies raw CSV → Lakehouse `Files/bronze/<entity>/<yyyy>/<mm>/<dd>/` with full audit row.
-3. **Silver load** applies schema + quality checks, routes rejected rows to `silver_rejects_<entity>` and logs to audit.
+3. **Silver load** (Dataflow Gen2 per entity) applies schema + quality checks, writes conformant rows to `silver.<entity>` and routes rejects to `silver_rejects.<entity>` — a Script activity in the pipeline logs counts to `audit.data_quality`.
 4. **Gold load** performs reconciliation (source vs Silver vs Gold row counts) — pipeline FAILS if variance > tolerance.
 5. **Audit dashboard** driven by three tables: `audit_pipeline_run`, `audit_activity_run`, `audit_data_quality`.
 6. **Alerting** via Fabric Activator on failed runs and reconciliation variance.

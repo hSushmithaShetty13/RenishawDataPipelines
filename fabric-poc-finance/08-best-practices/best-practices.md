@@ -8,7 +8,8 @@ Legend:  ✅ implemented in POC   ⚠️ demonstrated but hardening needed for p
 - ✅ **Standardised parameter set** across all pipelines (`p_run_id`, `p_load_date`, …).
 - ✅ **Single Master Orchestrator** with ForEach + child Invoke-pipeline pattern.
 - ✅ **Isolate stages** into Bronze / Silver / Gold pipelines (blast-radius control).
-- ⚠️ **Idempotency** — Silver writes use `overwrite`; production should use MERGE by business key.
+- ✅ **Right tool per stage** — Copy activity for ingest, **Dataflow Gen2** for Silver DQ (low-code), notebook only for reconciliation, T-SQL Scripts for Gold merge.
+- ⚠️ **Idempotency** — Silver dataflow uses `Replace` for full loads; production should use MERGE by business key via Warehouse destination.
 
 ## Error handling
 - ✅ **On Success / On Failure** paths on every activity.
