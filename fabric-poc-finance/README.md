@@ -76,6 +76,10 @@ Follow the numbered folders **in order**:
 
 Total build time: **~2 hours** for an engineer familiar with Fabric.
 
+## Autonomy
+
+The pipeline is designed to run **hands-off on a schedule** — no one types a date. `p_load_date` defaults to `@formatDateTime(utcNow(),'yyyy-MM-dd')`, evaluated at run time. Manual override is only used for back-fills. See `04-pipelines/pl_master_orchestrator.md` §"Scheduling and autonomy" for the recommended `trigger().scheduledTime` and tumbling-window variants.
+
 ---
 
 ## Reference

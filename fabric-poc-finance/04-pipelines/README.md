@@ -21,7 +21,7 @@ Every pipeline uses these **six standard parameters** (declared in the Parameter
 |-------------------|---------|-------------------------------------------------|--------------------------------|
 | `p_run_id`        | String  | `@pipeline().RunId`                             | Passed down to children.       |
 | `p_parent_run_id` | String  | `""`                                            | Empty for master.              |
-| `p_load_date`     | String  | `@formatDateTime(utcNow(),'yyyy-MM-dd')`        | Business date for the load.    |
+| `p_load_date`     | String  | `@formatDateTime(utcNow(),'yyyy-MM-dd')`        | Business date for the load. **Autonomous:** the default expression is evaluated at run-time, so scheduled runs never need a manual value. For scheduled triggers you can also use `@formatDateTime(trigger().scheduledTime,'yyyy-MM-dd')` — see `pl_master_orchestrator.md` §"Scheduling and autonomy". |
 | `p_entity_name`   | String  | —                                               | Child pipelines only.          |
 | `p_load_mode`     | String  | `Full`                                          | `Full` / `Incremental`.        |
 | `p_tolerance_pct` | Float   | `0.5`                                           | Reconciliation threshold.      |

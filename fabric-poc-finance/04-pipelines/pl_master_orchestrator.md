@@ -123,6 +123,33 @@ Add **If Condition** on `@equals(variables('v_status'),'PartialFailure')`.
 ### 10. Schedule
 Home → Schedule → recurrence `Every day 02:00 UTC`. Save.
 
+## Scheduling and autonomy
+
+The pipeline is **fully autonomous once scheduled** — no one enters a date. Three supported patterns, in order of preference:
+
+**A. Default expression on `p_load_date` (POC default, simplest)**
+The parameter default is `@formatDateTime(utcNow(),'yyyy-MM-dd')`. When the schedule fires and passes no override, Fabric evaluates the default at run time → today's UTC date. Manual runs can override for back-fill.
+
+**B. `trigger().scheduledTime` (recommended for tight SLAs)**
+Change the default (or the value passed to child pipelines) to:
+```
+@formatDateTime(trigger().scheduledTime,'yyyy-MM-dd')
+```
+Uses the scheduled tick, not the actual start time. If the capacity is busy and the run starts 15 min late, `load_date` is still the scheduled date. Prevents boundary bugs when the schedule fires near midnight UTC.
+
+**C. Tumbling-window trigger (recommended for production)**
+Replace the daily schedule with a tumbling window. Bind:
+```
+p_load_date = @formatDateTime(trigger().outputs.windowStartTime,'yyyy-MM-dd')
+```
+Adds: exactly-once semantics, automatic back-fill of missed windows, deterministic replays. See [`09-additional-interests/README.md`](../09-additional-interests/README.md) §5.
+
+### Back-fill / catch-up runs
+To reload a historic date, run the master manually and override `p_load_date = '2026-07-31'`. The pipeline is idempotent per date because:
+- Bronze incremental Copy uses `p_load_date` in the source path.
+- Silver dataflow uses `p_run_id` on reject rows (unique per run).
+- Gold MERGE uses business keys, not run-scoped keys.
+
 ## Retry & timeout defaults
 Apply to every Invoke-pipeline, Copy and Notebook activity:
 - **Retry:** 3
