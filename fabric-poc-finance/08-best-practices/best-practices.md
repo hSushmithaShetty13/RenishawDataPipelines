@@ -66,3 +66,5 @@ Legend:  ✅ implemented in POC   ⚠️ demonstrated but hardening needed for p
 
 ---
 Use this as the closing slide — customers respond to a self-critical scorecard.
+
+For **how to implement** the 🔜 items above, see [`09-additional-interests/README.md`](../09-additional-interests/README.md) — short how-to notes (15–60 min each) covering Log Analytics, SLO dashboards, SUM-based reconciliation, event triggers, tumbling windows, Managed Identity, Key Vault, RLS, Git integration, deployment pipelines, Purview lineage and CU consumption alerts.

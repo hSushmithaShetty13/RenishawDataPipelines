@@ -36,6 +36,7 @@ fabric-poc-finance/
 ├── 06-monitoring/         Monitoring, alerting, Activator setup
 ├── 07-demo-script/        60-minute talk track / runbook
 ├── 08-best-practices/     Microsoft-recommended patterns checklist
+├── 09-additional-interests/ How-to notes for the 🔜 items not in POC scope
 └── README.md
 ```
 
