@@ -9,7 +9,7 @@ Standard six + inherits `p_entity_name`, `p_load_mode`.
 
 ```mermaid
 flowchart LR
-    A[Lookup: control.source_config WHERE entity_name=p_entity_name] --> B[Lookup: control.watermark WHERE entity_name=p_entity_name]
+    A[Lookup: control.source_config WHERE entity_name=p_entity_name] --> B[Lookup: control.watermark - safe for Full, returns 1900-01-01]
     B --> C[Set variable: v_source_path]
     C --> D[Copy: Landing CSV -> Bronze Delta]
     D --> E[Script: sp_log_activity SUCCESS with rowsRead/Written/Rejected]
@@ -36,15 +36,18 @@ Same six parameters. Add:
   ```
 - First row only: **true**.
 
-### 3. `LKP_Watermark` (Lookup) — only for incremental
+### 3. `LKP_Watermark` (Lookup) — always runs; query is safe for Full loads
 - Query:
   ```sql
-  SELECT ISNULL(watermark_value,'1900-01-01') AS wm
-  FROM control.watermark
-  WHERE entity_name = '@{pipeline().parameters.p_entity_name}';
+  SELECT ISNULL((
+      SELECT watermark_value
+      FROM   control.watermark
+      WHERE  entity_name = '@{pipeline().parameters.p_entity_name}'
+        AND  '@{pipeline().parameters.p_load_mode}' = 'Incremental'
+  ), '1900-01-01') AS wm;
   ```
 - First row only: **true**.
-- Skip via If Condition when `p_load_mode = 'Full'`.
+- **No If Condition required.** For `Full` loads the query returns `'1900-01-01'` and the Copy activity ignores it (Full always reads all files). Simpler canvas, one less activity to maintain.
 
 ### 4. Set variable `v_source_path`
 Value:
